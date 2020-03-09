@@ -16,7 +16,11 @@ package redis
 
 import (
 	"context"
+	"runtime/trace"
 
+	"github.com/go-redis/redis"
+	"go.thethings.network/lorawan-stack/pkg/errors"
+	io "go.thethings.network/lorawan-stack/pkg/gatewayserver/io"
 	ttnredis "go.thethings.network/lorawan-stack/pkg/redis"
 	"go.thethings.network/lorawan-stack/pkg/ttnpb"
 	"go.thethings.network/lorawan-stack/pkg/unique"
@@ -32,14 +36,72 @@ func (r *GatewayConnectionStatsRegistry) key(uid string) string {
 }
 
 // Set sets or clears the connection stats for a gateway.
-func (r *GatewayConnectionStatsRegistry) Set(ctx context.Context, ids ttnpb.GatewayIdentifiers, stats *ttnpb.GatewayConnectionStats) error {
+func (r *GatewayConnectionStatsRegistry) Set(ctx context.Context, ids ttnpb.GatewayIdentifiers, stats *ttnpb.GatewayConnectionStats, newTraffic io.Traffic) error {
 	uid := unique.ID(ctx, ids)
-	if stats == nil {
-		return r.Redis.Del(r.key(uid)).Err()
-	}
+	key := r.key(uid)
 
-	_, err := ttnredis.SetProto(r.Redis, r.key(uid), stats, 0)
-	return err
+	defer trace.StartRegion(ctx, "set gateway connection stats").End()
+
+	err := r.Redis.Watch(func(tx *redis.Tx) error {
+		stored := &ttnpb.GatewayConnectionStats{}
+		var pipelined func(redis.Pipeliner) error
+
+		// Delete if nil
+		if stats == nil {
+			pipelined = func(p redis.Pipeliner) error {
+				return p.Del(key).Err()
+			}
+		} else {
+			// Get current stats
+			err := ttnredis.GetProto(tx, uid).ScanProto(stored)
+			if err != nil {
+				// Redis error, cannot proceed
+				if !errors.IsNotFound(err) {
+					return err
+				}
+
+				// No stats in store yet. Simply set.
+				pipelined = func(p redis.Pipeliner) error {
+					_, err := ttnredis.SetProto(p, key, stats, 0)
+					return err
+				}
+			} else {
+				// Existing stats are in stored. Update based on new traffic
+				if newTraffic.Up {
+					newTraffic.Up = false
+
+					stored.LastUplinkReceivedAt = stats.LastUplinkReceivedAt
+					stored.UplinkCount = stats.UplinkCount
+				}
+				if newTraffic.Down {
+					newTraffic.Down = false
+
+					stored.LastDownlinkReceivedAt = stats.LastDownlinkReceivedAt
+					stored.DownlinkCount = stats.DownlinkCount
+					stored.RoundTripTimes = stats.RoundTripTimes
+				}
+				if newTraffic.Status {
+					newTraffic.Status = false
+
+					stored.LastStatus = stats.LastStatus
+					stored.LastStatusReceivedAt = stats.LastStatusReceivedAt
+				}
+
+				pipelined = func(p redis.Pipeliner) error {
+					_, err := ttnredis.SetProto(p, key, stored, 0)
+					return err
+				}
+			}
+		}
+
+		_, err := tx.Pipelined(pipelined)
+		return err
+	}, key)
+
+	if err != nil {
+		return ttnredis.ConvertError(err)
+	}
+	return nil
 }
 
 // Get returns the connection stats for a gateway.

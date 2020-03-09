@@ -90,6 +90,15 @@ type Connection struct {
 
 	statsChangedCh chan struct{}
 	locCh          chan struct{}
+
+	newTraffic Traffic
+}
+
+// Traffic defines the kind of traffic that has been observed for a gateway.
+type Traffic struct {
+	Up     bool
+	Down   bool
+	Status bool
 }
 
 var (
@@ -225,6 +234,8 @@ func (c *Connection) HandleUp(up *ttnpb.UplinkMessage) error {
 	case c.upCh <- msg:
 		atomic.AddUint64(&c.uplinks, 1)
 		atomic.StoreInt64(&c.lastUplinkTime, up.ReceivedAt.UnixNano())
+
+		c.newTraffic.Up = true
 		c.notifyStatsChanged()
 	default:
 		return errBufferFull
@@ -240,6 +251,8 @@ func (c *Connection) HandleStatus(status *ttnpb.GatewayStatus) error {
 	case c.statusCh <- status:
 		c.lastStatus.Store(status)
 		atomic.StoreInt64(&c.lastStatusTime, time.Now().UnixNano())
+
+		c.newTraffic.Status = true
 		c.notifyStatsChanged()
 
 		if len(status.AntennaLocations) > 0 && c.gateway.UpdateLocationFromStatus {
@@ -313,6 +326,9 @@ func (c *Connection) SendDown(msg *ttnpb.DownlinkMessage) error {
 	case c.downCh <- msg:
 		atomic.AddUint64(&c.downlinks, 1)
 		atomic.StoreInt64(&c.lastDownlinkTime, time.Now().UnixNano())
+
+		c.newTraffic.Down = true
+		c.notifyStatsChanged()
 	default:
 		return errBufferFull
 	}
@@ -625,4 +641,9 @@ func (c *Connection) notifyStatsChanged() {
 	case c.statsChangedCh <- struct{}{}:
 	default:
 	}
+}
+
+// NewTraffic returns the new types of traffic for this connection since the last stats update
+func (c *Connection) NewTraffic() Traffic {
+	return c.newTraffic
 }

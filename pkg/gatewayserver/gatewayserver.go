@@ -656,7 +656,12 @@ func (gs *GatewayServer) handleUpstream(conn connectionEntry) {
 
 // UpdateConnectionStats updates the stats for a single gateway connection.
 func (gs *GatewayServer) UpdateConnectionStats(ctx context.Context, conn *io.Connection) error {
-	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats())
+	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), conn.NewTraffic())
+}
+
+// ClearConnectionStats clears the stats for a single gateway connection.
+func (gs *GatewayServer) ClearConnectionStats(ctx context.Context, conn *io.Connection) error {
+	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, nil, io.Traffic{})
 }
 
 func (gs *GatewayServer) updateConnStats(conn connectionEntry) {
@@ -665,7 +670,7 @@ func (gs *GatewayServer) updateConnStats(conn connectionEntry) {
 
 	defer func() {
 		logger.Debug("Delete connection stats")
-		err := gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, nil)
+		err := gs.ClearConnectionStats(ctx, conn.Connection)
 		if err != nil {
 			logger.WithError(err).Error("Failed to delete connection stats")
 		}
