@@ -68,21 +68,15 @@ func (r *GatewayConnectionStatsRegistry) Set(ctx context.Context, ids ttnpb.Gate
 			} else {
 				// Existing stats are in stored. Update based on new traffic
 				if newTraffic.Up {
-					newTraffic.Up = false
-
 					stored.LastUplinkReceivedAt = stats.LastUplinkReceivedAt
 					stored.UplinkCount = stats.UplinkCount
 				}
 				if newTraffic.Down {
-					newTraffic.Down = false
-
 					stored.LastDownlinkReceivedAt = stats.LastDownlinkReceivedAt
 					stored.DownlinkCount = stats.DownlinkCount
 					stored.RoundTripTimes = stats.RoundTripTimes
 				}
 				if newTraffic.Status {
-					newTraffic.Status = false
-
 					stored.LastStatus = stats.LastStatus
 					stored.LastStatusReceivedAt = stats.LastStatusReceivedAt
 				}

@@ -656,11 +656,13 @@ func (gs *GatewayServer) handleUpstream(conn connectionEntry) {
 
 // UpdateConnectionStats updates the stats for a single gateway connection.
 func (gs *GatewayServer) UpdateConnectionStats(ctx context.Context, conn *io.Connection) error {
+	defer conn.ClearNewTraffic()
 	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), conn.NewTraffic())
 }
 
 // ClearConnectionStats clears the stats for a single gateway connection.
 func (gs *GatewayServer) ClearConnectionStats(ctx context.Context, conn *io.Connection) error {
+	defer conn.ClearNewTraffic()
 	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, nil, io.Traffic{})
 }
 

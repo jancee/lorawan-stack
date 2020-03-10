@@ -647,3 +647,10 @@ func (c *Connection) notifyStatsChanged() {
 func (c *Connection) NewTraffic() Traffic {
 	return c.newTraffic
 }
+
+// ClearNewTraffic clears new traffic
+func (c *Connection) ClearNewTraffic() {
+	c.newTraffic.Up = false
+	c.newTraffic.Down = false
+	c.newTraffic.Status = false
+}
