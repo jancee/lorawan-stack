@@ -53,7 +53,7 @@ func (r *GatewayConnectionStatsRegistry) Set(ctx context.Context, ids ttnpb.Gate
 			}
 		} else {
 			// Get current stats
-			err := ttnredis.GetProto(tx, uid).ScanProto(stored)
+			err := ttnredis.GetProto(tx, key).ScanProto(stored)
 			if err != nil {
 				// Redis error, cannot proceed
 				if !errors.IsNotFound(err) {
