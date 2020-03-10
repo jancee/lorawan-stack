@@ -660,7 +660,7 @@ func (gs *GatewayServer) UpdateConnectionStats(ctx context.Context, conn *io.Con
 	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), conn.NewTraffic())
 }
 
-// UpdateConnectionStats updates the stats for a single gateway connection.
+// UpdateAllConnectionStats updates the stats for a single gateway connection.
 func (gs *GatewayServer) UpdateAllConnectionStats(ctx context.Context, conn *io.Connection) error {
 	defer conn.ClearNewTraffic()
 	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), io.Traffic{Up: true, Down: true, Status: true})
