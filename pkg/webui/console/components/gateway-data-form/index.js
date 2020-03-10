@@ -27,6 +27,7 @@ import { GsFrequencyPlansSelect } from '../../containers/freq-plans-select'
 import sharedMessages from '../../../lib/shared-messages'
 import { id as gatewayIdRegexp, address as addressRegexp } from '../../lib/regexp'
 import OwnersSelect from '../../containers/owners-select'
+import ScheduleDelayInput from '../../containers/schedule-delay-input'
 
 const m = defineMessages({
   enforced: 'Enforced',
@@ -44,6 +45,8 @@ const m = defineMessages({
   updateChannelDescription: 'Channel for gateway automatic updates',
   enforceDutyCycleDescription:
     'Recommended for all gateways in order to respect spectrum regulations',
+  scheduleAnyTimeDelay: 'Schedule Any Time Delay',
+  scheduleAnyTimeDescription: 'Configure Gateway Delay (minimum: 130ms, default: 530ms)',
 })
 
 const validationSchema = Yup.object().shape({
@@ -69,6 +72,7 @@ const validationSchema = Yup.object().shape({
   status_public: Yup.boolean().default(false),
   schedule_downlink_late: Yup.boolean().default(false),
   auto_update: Yup.boolean().default(false),
+  schedule_anytime_delay: Yup.string().required(sharedMessages.validateRequired),
 })
 
 @bind
@@ -159,6 +163,12 @@ class GatewayDataForm extends React.Component {
           component={Checkbox}
           label={m.enforced}
           description={m.enforceDutyCycleDescription}
+        />
+        <ScheduleDelayInput
+          title={m.scheduleAnyTimeDelay}
+          name="schedule_anytime_delay"
+          description={m.scheduleAnyTimeDescription}
+          required
         />
         <Message component="h4" content={sharedMessages.gatewayUpdateOptions} />
         <Form.Field
