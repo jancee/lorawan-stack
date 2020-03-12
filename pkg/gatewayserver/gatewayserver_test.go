@@ -1041,10 +1041,14 @@ func TestGatewayServer(t *testing.T) {
 								time.Sleep(timeout)
 							}
 
+							time.Sleep(2 * timeout)
+
 							conn, ok := gs.GetConnection(ctx, ids)
 							a.So(ok, should.BeTrue)
+							a.So(conn.Stats(), should.NotBeNil)
 							gs.UpdateAllConnectionStats(ctx, conn)
 							a.So(conn.NewTraffic(), should.Resemble, io.Traffic{})
+
 							stats, err := statsClient.GetGatewayConnectionStats(statsCtx, &ids)
 							if !a.So(err, should.BeNil) {
 								t.FailNow()
@@ -1307,8 +1311,11 @@ func TestGatewayServer(t *testing.T) {
 								t.Fatal("Expected downlink timeout")
 							}
 
+							time.Sleep(2 * timeout)
+
 							conn, ok := gs.GetConnection(ctx, ids)
 							a.So(ok, should.BeTrue)
+							a.So(conn.Stats(), should.NotBeNil)
 							gs.UpdateAllConnectionStats(ctx, conn)
 
 							stats, err := statsClient.GetGatewayConnectionStats(statsCtx, &ids)

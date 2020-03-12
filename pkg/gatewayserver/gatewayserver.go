@@ -660,10 +660,12 @@ func (gs *GatewayServer) UpdateConnectionStats(ctx context.Context, conn *io.Con
 	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), conn.NewTraffic())
 }
 
+var allTraffic = io.Traffic{Up: true, Down: true, Status: true}
+
 // UpdateAllConnectionStats updates the stats for a single gateway connection.
 func (gs *GatewayServer) UpdateAllConnectionStats(ctx context.Context, conn *io.Connection) error {
 	defer conn.ClearNewTraffic()
-	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), io.Traffic{Up: true, Down: true, Status: true})
+	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), allTraffic)
 }
 
 // ClearConnectionStats clears the stats for a single gateway connection.
@@ -688,6 +690,9 @@ func (gs *GatewayServer) updateConnStats(conn connectionEntry) {
 		case <-ctx.Done():
 			return
 		case <-conn.StatsChanged():
+			if conn.Connection != nil {
+				logger.Error("Connection does not exist")
+			}
 			err := gs.UpdateConnectionStats(ctx, conn.Connection)
 			if err != nil {
 				logger.WithError(err).Error("Failed to update connection stats")
