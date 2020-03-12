@@ -43,6 +43,7 @@ import (
 	nsredis "go.thethings.network/lorawan-stack/pkg/networkserver/redis"
 	"go.thethings.network/lorawan-stack/pkg/qrcodegenerator"
 	"go.thethings.network/lorawan-stack/pkg/redis"
+	"go.thethings.network/lorawan-stack/pkg/stackconfigurationserver"
 	"go.thethings.network/lorawan-stack/pkg/web"
 )
 
@@ -246,6 +247,12 @@ var startCommand = &cobra.Command{
 			}
 			_ = gcs
 		}
+
+		scs, err := stackconfigurationserver.New(c)
+		if err != nil {
+			return err
+		}
+		_ = scs
 
 		if start.DeviceTemplateConverter || startDefault {
 			logger.Info("Setting up Device Template Converter")
