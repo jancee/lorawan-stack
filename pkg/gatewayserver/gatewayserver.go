@@ -654,56 +654,51 @@ func (gs *GatewayServer) handleUpstream(conn connectionEntry) {
 	}
 }
 
-// UpdateConnectionStats updates the stats for a single gateway connection.
-func (gs *GatewayServer) UpdateConnectionStats(ctx context.Context, conn *io.Connection) error {
-	defer conn.ClearNewTraffic()
-	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), conn.NewTraffic())
-}
-
 var allTraffic = io.Traffic{Up: true, Down: true, Status: true}
 
 // UpdateAllConnectionStats updates the stats for a single gateway connection.
 func (gs *GatewayServer) UpdateAllConnectionStats(ctx context.Context, conn *io.Connection) error {
-	defer conn.ClearNewTraffic()
 	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), allTraffic)
-}
-
-// ClearConnectionStats clears the stats for a single gateway connection.
-func (gs *GatewayServer) ClearConnectionStats(ctx context.Context, conn *io.Connection) error {
-	defer conn.ClearNewTraffic()
-	return gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, nil, io.Traffic{})
 }
 
 func (gs *GatewayServer) updateConnStats(conn connectionEntry) {
 	ctx := conn.Context()
 	logger := log.FromContext(ctx)
 
+	if gs.statsRegistry == nil {
+		return
+	}
+
 	defer func() {
 		logger.Debug("Delete connection stats")
-		err := gs.ClearConnectionStats(ctx, conn.Connection)
+		err := gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, nil, io.Traffic{})
 		if err != nil {
 			logger.WithError(err).Error("Failed to delete connection stats")
 		}
 	}()
 	for {
+		var traffic io.Traffic
 		select {
 		case <-ctx.Done():
 			return
-		case <-conn.StatsChanged():
-			if conn.Connection != nil {
-				logger.Error("Connection does not exist")
-			}
-			err := gs.UpdateConnectionStats(ctx, conn.Connection)
-			if err != nil {
-				logger.WithError(err).Error("Failed to update connection stats")
-			}
+		case <-conn.UpChanged():
+			traffic.Up = true
+		case <-conn.DownChanged():
+			traffic.Down = true
+		case <-conn.StatusChanged():
+			traffic.Status = true
+		}
 
-			timeout := time.After(gs.updateConnectionStatsDebounceTime)
-			select {
-			case <-ctx.Done():
-				return
-			case <-timeout:
-			}
+		err := gs.statsRegistry.Set(ctx, conn.Gateway().GatewayIdentifiers, conn.Stats(), conn.GetTraffic(traffic))
+		if err != nil {
+			logger.WithError(err).Error("Failed to update connection stats")
+		}
+
+		timeout := time.After(gs.updateConnectionStatsDebounceTime)
+		select {
+		case <-ctx.Done():
+			return
+		case <-timeout:
 		}
 	}
 }

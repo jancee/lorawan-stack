@@ -1047,7 +1047,6 @@ func TestGatewayServer(t *testing.T) {
 							a.So(ok, should.BeTrue)
 							a.So(conn.Stats(), should.NotBeNil)
 							gs.UpdateAllConnectionStats(ctx, conn)
-							a.So(conn.NewTraffic(), should.Resemble, io.Traffic{})
 
 							stats, err := statsClient.GetGatewayConnectionStats(statsCtx, &ids)
 							if !a.So(err, should.BeNil) {

@@ -88,13 +88,13 @@ type Connection struct {
 	statusCh chan *ttnpb.GatewayStatus
 	txAckCh  chan *ttnpb.TxAcknowledgment
 
-	statsChangedCh chan struct{}
-	locCh          chan struct{}
-
-	newTraffic Traffic
+	upChangedCh     chan struct{}
+	downChangedCh   chan struct{}
+	statusChangedCh chan struct{}
+	locCh           chan struct{}
 }
 
-// Traffic defines the kind of traffic that has been observed for a gateway.
+// Traffic denotes the kind of traffic.
 type Traffic struct {
 	Up     bool
 	Down   bool
@@ -162,7 +162,9 @@ func NewConnection(ctx context.Context, frontend Frontend, gateway *ttnpb.Gatewa
 		locCh:       make(chan struct{}, 1),
 		connectTime: time.Now().UnixNano(),
 
-		statsChangedCh: make(chan struct{}, 1),
+		upChangedCh:     make(chan struct{}, 1),
+		downChangedCh:   make(chan struct{}, 1),
+		statusChangedCh: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -234,9 +236,7 @@ func (c *Connection) HandleUp(up *ttnpb.UplinkMessage) error {
 	case c.upCh <- msg:
 		atomic.AddUint64(&c.uplinks, 1)
 		atomic.StoreInt64(&c.lastUplinkTime, up.ReceivedAt.UnixNano())
-
-		c.newTraffic.Up = true
-		c.notifyStatsChanged()
+		c.notifyUpChanged()
 	default:
 		return errBufferFull
 	}
@@ -251,9 +251,7 @@ func (c *Connection) HandleStatus(status *ttnpb.GatewayStatus) error {
 	case c.statusCh <- status:
 		c.lastStatus.Store(status)
 		atomic.StoreInt64(&c.lastStatusTime, time.Now().UnixNano())
-
-		c.newTraffic.Status = true
-		c.notifyStatsChanged()
+		c.notifyStatusChanged()
 
 		if len(status.AntennaLocations) > 0 && c.gateway.UpdateLocationFromStatus {
 			select {
@@ -273,7 +271,7 @@ func (c *Connection) HandleTxAck(ack *ttnpb.TxAcknowledgment) error {
 	case <-c.ctx.Done():
 		return c.ctx.Err()
 	case c.txAckCh <- ack:
-		c.notifyStatsChanged()
+		c.notifyStatusChanged()
 	default:
 		return errBufferFull
 	}
@@ -283,7 +281,7 @@ func (c *Connection) HandleTxAck(ack *ttnpb.TxAcknowledgment) error {
 // RecordRTT records the given round-trip time.
 func (c *Connection) RecordRTT(d time.Duration) {
 	c.rtts.Record(d)
-	c.notifyStatsChanged()
+	c.notifyStatusChanged()
 }
 
 var (
@@ -327,8 +325,7 @@ func (c *Connection) SendDown(msg *ttnpb.DownlinkMessage) error {
 		atomic.AddUint64(&c.downlinks, 1)
 		atomic.StoreInt64(&c.lastDownlinkTime, time.Now().UnixNano())
 
-		c.newTraffic.Down = true
-		c.notifyStatsChanged()
+		c.notifyDownChanged()
 	default:
 		return errBufferFull
 	}
@@ -543,9 +540,19 @@ func (c *Connection) TxAck() <-chan *ttnpb.TxAcknowledgment {
 	return c.txAckCh
 }
 
-// StatsChanged returns the stats changed channel.
-func (c *Connection) StatsChanged() <-chan struct{} {
-	return c.statsChangedCh
+// UpChanged returns the uplink stats changed channel.
+func (c *Connection) UpChanged() <-chan struct{} {
+	return c.upChangedCh
+}
+
+// DownChanged returns the downlink stats changed channel.
+func (c *Connection) DownChanged() <-chan struct{} {
+	return c.downChangedCh
+}
+
+// StatusChanged returns the status changed channel.
+func (c *Connection) StatusChanged() <-chan struct{} {
+	return c.statusChangedCh
 }
 
 // LocationChanged returns the location updates channel.
@@ -636,21 +643,52 @@ func (c *Connection) TimeFromTimestampTime(timestamp uint32) (scheduling.Concent
 	return c.scheduler.TimeFromTimestampTime(timestamp)
 }
 
-func (c *Connection) notifyStatsChanged() {
+func (c *Connection) notifyUpChanged() {
 	select {
-	case c.statsChangedCh <- struct{}{}:
+	case c.upChangedCh <- struct{}{}:
 	default:
 	}
 }
 
-// NewTraffic returns the new types of traffic for this connection since the last stats update
-func (c *Connection) NewTraffic() Traffic {
-	return c.newTraffic
+func (c *Connection) notifyDownChanged() {
+	select {
+	case c.downChangedCh <- struct{}{}:
+	default:
+	}
 }
 
-// ClearNewTraffic clears new traffic
-func (c *Connection) ClearNewTraffic() {
-	c.newTraffic.Up = false
-	c.newTraffic.Down = false
-	c.newTraffic.Status = false
+func (c *Connection) notifyStatusChanged() {
+	select {
+	case c.statusChangedCh <- struct{}{}:
+	default:
+	}
+}
+
+// GetTraffic picks up new traffic from all notifications channels.
+func (c *Connection) GetTraffic(traffic Traffic) Traffic {
+	if !traffic.Up {
+		select {
+		case <-c.upChangedCh:
+			traffic.Up = true
+		default:
+		}
+	}
+
+	if !traffic.Down {
+		select {
+		case <-c.downChangedCh:
+			traffic.Down = true
+		default:
+		}
+	}
+
+	if !traffic.Status {
+		select {
+		case <-c.statusChangedCh:
+			traffic.Status = true
+		default:
+		}
+	}
+
+	return traffic
 }
