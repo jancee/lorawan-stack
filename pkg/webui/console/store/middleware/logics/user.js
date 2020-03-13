@@ -1,4 +1,4 @@
-// Copyright © 2019 The Things Network Foundation, The Things Industries B.V.
+// Copyright © 2020 The Things Network Foundation, The Things Industries B.V.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 import * as user from '../../actions/user'
 import api from '../../../api'
 import * as accessToken from '../../../lib/access-token'
+import { isUnauthenticatedError } from '../../../../lib/errors/utils'
 import createRequestLogic from './lib'
 
 export default [
@@ -22,11 +23,16 @@ export default [
     type: user.LOGOUT,
     async process() {
       try {
-        await api.console.logout()
-      } finally {
+        const response = await api.console.logout()
+        window.location = response.data.op_logout_uri
         accessToken.clear()
+      } catch (err) {
+        if (isUnauthenticatedError(err)) {
+          accessToken.clear()
+        } else {
+          throw err
+        }
       }
-      return true
     },
   }),
 ]
