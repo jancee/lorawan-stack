@@ -31,7 +31,6 @@ var (
 type Config struct {
 	conf.Base                          `name:",squash"`
 	CredentialsID                      string `name:"credentials-id" yaml:"credentials-id" description:"Credentials ID (if using multiple configurations)"`
-	Use                                string `name:"use" yaml:"use" description:"Server address to use"`
 	InputFormat                        string `name:"input-format" yaml:"input-format" description:"Input format"`
 	OutputFormat                       string `name:"output-format" yaml:"output-format" description:"Output format"`
 	AllowUnknownHosts                  bool   `name:"allow-unknown-hosts" yaml:"allow-unknown-hosts" description:"Allow sending credentials to unknown hosts"`
@@ -111,7 +110,6 @@ func BuildDefaultConfig(clusterHost string, insecure bool) Config {
 		DeviceTemplateConverterGRPCAddress: clusterGRPCAddress,
 		DeviceClaimingServerGRPCAddress:    clusterGRPCAddress,
 		QRCodeGeneratorGRPCAddress:         clusterGRPCAddress,
-		Use:                                clusterHost,
 		Insecure:                           insecure,
 	}
 }
