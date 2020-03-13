@@ -16,6 +16,8 @@ package commands
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -23,6 +25,7 @@ import (
 )
 
 var (
+	configFile = ".ttn-lw-cli.yml"
 	useCommand = &cobra.Command{
 		Use:              "use",
 		Short:            "Use",
@@ -31,6 +34,9 @@ var (
 			insecure, _ := cmd.Flags().GetBool("insecure")
 			ca, _ := cmd.Flags().GetString("ca")
 			host, _ := cmd.Flags().GetString("host")
+
+			user, _ := cmd.Flags().GetBool("user")
+			overwrite, _ := cmd.Flags().GetBool("overwrite")
 
 			// Build configuration
 			cfg := BuildDefaultConfig(host, insecure)
@@ -46,12 +52,27 @@ var (
 			if err != nil {
 				return err
 			}
-			str := string(bytestr)
 
-			// Print to stdout
-			fmt.Println(str)
+			fname := configFile
+			if user {
+				dir, err := os.UserConfigDir()
+				if err != nil {
+					return err
+				}
+				fname = filepath.Join(dir, configFile)
+			}
 
-			return nil
+			_, err = os.Stat(fname)
+			if err == nil && !overwrite {
+				fmt.Printf("%s exists. Not overwriting.\n", fname)
+				os.Exit(-1)
+			}
+
+			err = ioutil.WriteFile(fname, bytestr, 0644)
+			if err == nil {
+				fmt.Printf("Config file for %s written in %s\n", host, fname)
+			}
+			return err
 		},
 	}
 )
@@ -60,5 +81,7 @@ func init() {
 	useCommand.Flags().Bool("insecure", defaultInsecure, "Connect without TLS")
 	useCommand.Flags().String("host", defaultClusterHost, "Server host name")
 	useCommand.Flags().String("ca", "", "Certificate file to use")
+	useCommand.Flags().Bool("user", false, "Write config file in user config directory")
+	useCommand.Flags().Bool("overwrite", false, "Overwrite existing config files without confirmation")
 	Root.AddCommand(useCommand)
 }
